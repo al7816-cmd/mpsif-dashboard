@@ -1,0 +1,6 @@
+.env
+__pycache__/
+*.pyc
+data/price_cache.csv
+data/subfund_config.json
+.claude/
