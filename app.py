@@ -173,11 +173,12 @@ st.markdown(f"""
         /* Columns: allow wrapping on small screens */
         [data-testid="stHorizontalBlock"] {{
             flex-wrap: wrap !important;
-            gap: 0.4rem !important;
+            gap: 0.35rem !important;
         }}
-        /* 5-col period returns: 3+2 layout */
+        /* 2-col grid on mobile */
         [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
-            min-width: 30% !important;
+            min-width: 46% !important;
+            flex: 1 1 46% !important;
         }}
 
         /* Segmented controls: wrap and smaller */
@@ -325,6 +326,9 @@ def html_table(df: pd.DataFrame, raw_df: pd.DataFrame = None,
     </body></html>"""
 
 
+# Plotly config: hide toolbar on mobile, minimal on desktop
+PLOTLY_CFG = {"displayModeBar": False}
+
 # ── Charts ─────────────────────────────────────────────────────────────────
 def make_return_chart(rets: pd.Series, height: int = 380,
                       bench_rets: pd.Series = None, bench_label: str = ""):
@@ -336,7 +340,8 @@ def make_return_chart(rets: pd.Series, height: int = 380,
         x=cum.index, y=cum.values, mode="lines", name="Portfolio",
         line=dict(color=NYU_PURPLE, width=2.5),
         fill="tozeroy", fillcolor="rgba(87, 6, 140, 0.07)",
-        hovertemplate="Portfolio<br>%{x|%b %d, %Y}: %{y:+.3f}%<extra></extra>",
+        yhoverformat="+.3f",
+        hovertemplate="Portfolio: %{y}%<extra></extra>",
     ))
     if bench_rets is not None and not bench_rets.empty:
         bench_aligned = bench_rets.reindex(rets.index).dropna()
@@ -346,7 +351,8 @@ def make_return_chart(rets: pd.Series, height: int = 380,
                 x=bench_cum.index, y=bench_cum.values, mode="lines",
                 name=bench_label,
                 line=dict(color="#F59E0B", width=2, dash="dash"),
-                hovertemplate=f"{bench_label}<br>%{{x|%b %d, %Y}}: %{{y:+.3f}}%<extra></extra>",
+                yhoverformat="+.3f",
+                hovertemplate=f"{bench_label}: %{{y}}%<extra></extra>",
             ))
     show_legend = bench_rets is not None and not bench_rets.empty
     fig.update_layout(
@@ -406,7 +412,8 @@ def make_multi_fund_chart(fund_data: dict, visible: list, height: int = 400):
             x=cum.index, y=cum.values, mode="lines", name=name,
             line=dict(color=colors.get(name, GRAY), width=line_width, dash=line_dash),
             visible=True if name in visible else "legendonly",
-            hovertemplate=f"{name}<br>%{{x|%b %d}}: %{{y:+.3f}}%<extra></extra>",
+            yhoverformat="+.3f",
+            hovertemplate=f"{name}: %{{y}}%<extra></extra>",
         ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=20, b=0),
@@ -639,11 +646,11 @@ with tabs[0]:
                 fund_rets[name] = d["returns"]
             if not blended_bench_rets.empty:
                 fund_rets[bench_label] = blended_bench_rets
-            st.plotly_chart(make_multi_fund_chart(fund_rets, visible_funds), use_container_width=True)
+            st.plotly_chart(make_multi_fund_chart(fund_rets, visible_funds), use_container_width=True, config=PLOTLY_CFG)
 
             # ── Drawdown ──
             st.markdown('<div class="section-header">Drawdown</div>', unsafe_allow_html=True)
-            st.plotly_chart(make_drawdown_chart(combined_rets), use_container_width=True)
+            st.plotly_chart(make_drawdown_chart(combined_rets), use_container_width=True, config=PLOTLY_CFG)
 
             # ── Summary table ──
             st.markdown('<div class="section-header">Sub-Fund Summary</div>', unsafe_allow_html=True)
@@ -765,7 +772,7 @@ for idx, name in enumerate(pf.SUBFUNDS):
 
         # ── Drawdown ──
         st.markdown('<div class="section-header">Drawdown</div>', unsafe_allow_html=True)
-        st.plotly_chart(make_drawdown_chart(rets, height=180), use_container_width=True)
+        st.plotly_chart(make_drawdown_chart(rets, height=180), use_container_width=True, config=PLOTLY_CFG)
 
         # ── Current Holdings ──
         st.markdown('<div class="section-header">Current Holdings</div>', unsafe_allow_html=True)
@@ -789,7 +796,7 @@ for idx, name in enumerate(pf.SUBFUNDS):
 
             hcol1, hcol2 = st.columns([1, 2])
             with hcol1:
-                st.plotly_chart(make_holdings_pie(holdings), use_container_width=True)
+                st.plotly_chart(make_holdings_pie(holdings), use_container_width=True, config=PLOTLY_CFG)
             with hcol2:
                 components.html(html_table(tbl, raw_df=raw_tbl, max_height="450px",
                                        default_sort="Weight (%)", default_asc=False), height=min(500, 40 * len(tbl) + 55), scrolling=True)
