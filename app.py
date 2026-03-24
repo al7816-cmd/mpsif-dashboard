@@ -548,16 +548,37 @@ def load_benchmark_returns(subfund_data):
 
 
 def combine_returns(subfund_data: dict) -> pd.Series:
-    all_vals = {}
+    """AUM-weighted combined return across sub-funds.
+    Each day, weights are based on prior-day portfolio values."""
+    vals = {}
+    rets = {}
     for name, d in subfund_data.items():
         pv = d["portfolio_values"]["Total"]
-        all_vals[name] = pv
-    if not all_vals:
+        pv = pv[pv > 0]  # drop zero/pre-funding rows
+        if len(pv) < 2:
+            continue
+        vals[name] = pv
+        rets[name] = d["returns"]
+    if not rets:
         return pd.Series(dtype=float)
-    combined = pd.DataFrame(all_vals).sort_index().ffill().fillna(0)
-    total = combined.sum(axis=1)
-    total = total[total > 0]
-    return pf.daily_returns(total)
+
+    # Align all to common date index
+    val_df = pd.DataFrame(vals).sort_index().ffill()
+    ret_df = pd.DataFrame(rets).sort_index()
+
+    # Only include dates where at least one fund has returns
+    common_dates = ret_df.dropna(how="all").index
+    val_df = val_df.reindex(common_dates).ffill()
+    ret_df = ret_df.reindex(common_dates).fillna(0)
+
+    # AUM weights from prior day
+    weights = val_df.shift(1).dropna(how="all")
+    weights = weights.div(weights.sum(axis=1), axis=0).fillna(0)
+
+    # Weighted return
+    aligned_dates = weights.index.intersection(ret_df.index)
+    weighted = (ret_df.loc[aligned_dates] * weights.loc[aligned_dates]).sum(axis=1)
+    return weighted
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -796,7 +817,7 @@ for idx, name in enumerate(pf.SUBFUNDS):
 
         st.plotly_chart(
             make_return_chart(chart_rets, bench_rets=chart_bench, bench_label=bench_ticker),
-            use_container_width=True,
+            use_container_width=True, config=PLOTLY_CFG,
         )
 
         # ── Drawdown ──
