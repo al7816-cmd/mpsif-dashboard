@@ -548,31 +548,33 @@ def load_benchmark_returns(subfund_data):
 
 
 def combine_returns(subfund_data: dict) -> pd.Series:
-    """AUM-weighted average of sub-fund daily returns.
-    Weight each fund's return by its prior-day AUM share."""
+    """Equity-weighted average of sub-fund daily returns.
+    Weight each fund's return by its prior-day equity (invested capital),
+    not total value, so idle cash doesn't inflate a fund's influence."""
     if len(subfund_data) == 1:
-        # Single fund — just return its returns directly
         return list(subfund_data.values())[0]["returns"]
 
     fund_rets = {}
-    fund_aum = {}
+    fund_equity = {}
     for name, d in subfund_data.items():
         r = d["returns"]
-        pv = d["portfolio_values"]["Total"]
-        pv = pv[pv > 0]
+        pv = d["portfolio_values"]
         if r.empty or len(pv) < 2:
             continue
         fund_rets[name] = r
-        fund_aum[name] = pv
+        # Use Equity column (invested capital) for weighting
+        eq = pv["Equity"] if "Equity" in pv.columns else pv["Total"]
+        eq = eq.clip(lower=0)
+        fund_equity[name] = eq
 
     if not fund_rets:
         return pd.Series(dtype=float)
 
     ret_df = pd.DataFrame(fund_rets).sort_index().fillna(0)
-    aum_df = pd.DataFrame(fund_aum).sort_index().ffill().reindex(ret_df.index).ffill().fillna(0)
+    eq_df = pd.DataFrame(fund_equity).sort_index().ffill().reindex(ret_df.index).ffill().fillna(0)
 
-    # Prior-day AUM weights
-    weights = aum_df.shift(1).dropna(how="all")
+    # Prior-day equity weights
+    weights = eq_df.shift(1).dropna(how="all")
     row_totals = weights.sum(axis=1)
     weights = weights.div(row_totals, axis=0).fillna(0)
 
