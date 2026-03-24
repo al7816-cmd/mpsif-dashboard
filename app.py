@@ -48,7 +48,8 @@ st.markdown(f"""
         font-weight: 500 !important;
     }}
 
-    .main .block-container {{ padding-top: 1.5rem; max-width: 1200px; }}
+    .main .block-container {{ padding-top: 0.5rem; max-width: 1200px; }}
+    .stAppHeader {{ display: none; }}
 
     /* ── Logo ── */
     .logo {{
