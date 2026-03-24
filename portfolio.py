@@ -86,6 +86,7 @@ def parse_fidelity_csv(filepath: str):
 
     # Find first BUY date
     buy_mask = raw_actions.str.contains("YOU BOUGHT", na=False)
+    sell_mask = raw_actions.str.contains("YOU SOLD", na=False)
     first_buy_date = raw_dates[buy_mask].min()
 
     # Get cash balance right before first buy:
@@ -97,6 +98,24 @@ def parse_fidelity_csv(filepath: str):
         initial_cash = raw_cb.loc[idx_max_cb] + abs(raw_amt.loc[idx_max_cb])
     else:
         initial_cash = 0
+
+    # Account for pre-existing positions (orphan sells).
+    # If the CSV starts mid-life, there may be SELL transactions for positions
+    # we never saw a BUY for. Sells that happen BEFORE the first buy are already
+    # reflected in Fidelity's cash balance (and thus in initial_cash). But sells
+    # that happen AFTER the first buy represent equity that existed at the start
+    # and must be added to initial_cash to avoid understating the portfolio value.
+    bought_syms = set(raw.loc[buy_mask, "Symbol"].str.strip())
+    orphan_sell_mask = sell_mask & ~raw["Symbol"].str.strip().isin(bought_syms)
+    # Only count orphan sells AFTER the first buy date
+    after_first_buy = orphan_sell_mask & (raw_dates > first_buy_date)
+    orphan_proceeds = pd.to_numeric(
+        raw.loc[after_first_buy, "Amount ($)"].astype(str).str.replace(",", ""),
+        errors="coerce",
+    ).fillna(0).sum()
+    if orphan_proceeds > 0:
+        initial_cash += orphan_proceeds
+        log.info(f"  Added ${orphan_proceeds:,.2f} orphan sell proceeds (after first buy) to initial_cash")
 
     # Now build the filtered DataFrame
     df = pd.DataFrame()
@@ -150,6 +169,9 @@ def reconstruct_positions(txns: pd.DataFrame):
 
             elif action == "SELL":
                 if positions.get(sym, 0) <= 0:
+                    # Orphan sell (pre-existing position we never saw a BUY for).
+                    # Cash is already accounted for via initial_cash adjustment
+                    # in parse_fidelity_csv, so skip to avoid double-counting.
                     continue
                 positions[sym] = positions[sym] - abs(qty)
                 if positions[sym] < 0.001:
