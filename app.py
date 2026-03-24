@@ -856,14 +856,24 @@ for idx, name in enumerate(pf.SUBFUNDS):
 
         # ── Factor Exposure ──
         if not rets.empty:
-            st.markdown('<div class="section-header">Factor Exposure</div>', unsafe_allow_html=True)
             start_str = (d["first_date"] - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
             end_str = (d["end_date"] + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+
+            st.markdown('<div class="section-header">Factor Exposure (Custom)</div>', unsafe_allow_html=True)
             factor_betas = pf.compute_factor_betas(rets, start_str, end_str)
-            fcols = st.columns(len(factor_betas))
-            for i, (factor_name, beta_val) in enumerate(factor_betas.items()):
-                with fcols[i]:
-                    st.markdown(metric_card(factor_name, f"{beta_val:.3f}", color_class(beta_val)), unsafe_allow_html=True)
+            if factor_betas:
+                fcols = st.columns(len(factor_betas))
+                for i, (factor_name, beta_val) in enumerate(factor_betas.items()):
+                    with fcols[i]:
+                        st.markdown(metric_card(factor_name, f"{beta_val:.3f}", color_class(beta_val)), unsafe_allow_html=True)
+
+            st.markdown('<div class="section-header">Factor Exposure (ETF Proxies)</div>', unsafe_allow_html=True)
+            etf_betas = pf.compute_etf_factor_betas(rets, start_str, end_str)
+            if etf_betas:
+                ecols = st.columns(len(etf_betas))
+                for i, (factor_name, beta_val) in enumerate(etf_betas.items()):
+                    with ecols[i]:
+                        st.markdown(metric_card(factor_name, f"{beta_val:.3f}", color_class(beta_val)), unsafe_allow_html=True)
 
         # ── Dividends ──
         if dividends:
