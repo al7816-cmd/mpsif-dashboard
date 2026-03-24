@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import base64
+import os
 from pathlib import Path
 from PIL import Image
 import portfolio as pf
@@ -496,7 +497,7 @@ def make_holdings_pie(holdings_df: pd.DataFrame, height: int = 350):
 
 
 # ── Data loading ───────────────────────────────────────────────────────────
-DATA_DIR = Path("data")
+DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
 SUBFUND_FILES = {
     "Systematic": DATA_DIR / "systematic.csv",
     "Opportunistic": DATA_DIR / "opportunistic.csv",

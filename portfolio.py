@@ -45,7 +45,8 @@ def _today_est() -> pd.Timestamp:
 
 
 # ── Config management ──────────────────────────────────────────────────────
-CONFIG_PATH = Path("data/subfund_config.json")
+_DATA_DIR = Path(os.getenv("DATA_DIR", "data"))
+CONFIG_PATH = _DATA_DIR / "subfund_config.json"
 
 
 def load_config() -> dict:
@@ -182,7 +183,7 @@ def build_daily_positions(snapshots, start, end):
 
 
 # ── 3. Prices (Alpaca Market Data REST + file cache) ─────────────────────
-PRICE_CACHE_PATH = Path("data/price_cache.csv")
+PRICE_CACHE_PATH = _DATA_DIR / "price_cache.csv"
 _ALPACA_DATA_URL = "https://data.alpaca.markets/v2/stocks/bars"
 
 
