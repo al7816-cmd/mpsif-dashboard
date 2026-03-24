@@ -115,6 +115,23 @@ st.markdown(f"""
     hr {{ border: none; border-top: 1px solid #E5E7EB; margin: 1.5rem 0; }}
     #MainMenu, footer, header {{ visibility: hidden; }}
 
+    /* ── File uploader ── */
+    [data-testid="stFileUploader"] button {{
+        border-radius: 20px !important;
+        padding: 0.3rem 1rem !important;
+        font-size: 0.8rem !important;
+        font-weight: 400 !important;
+        border: 1px solid #E5E7EB !important;
+        background: {WHITE} !important;
+        color: {GRAY} !important;
+        transition: all 0.2s ease !important;
+    }}
+    [data-testid="stFileUploader"] button:hover {{
+        background: {NYU_PURPLE_BG} !important;
+        border-color: {NYU_PURPLE} !important;
+        color: {NYU_PURPLE} !important;
+    }}
+
     /* Refresh button */
     button[data-testid="stBaseButton-secondary"] {{
         border-radius: 50% !important;
