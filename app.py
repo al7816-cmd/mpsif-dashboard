@@ -582,7 +582,7 @@ with hdr2:
         st.rerun()
 
 # ── Tabs (always show all) ────────────────────────────────────────────────
-tab_names = ["Overview"] + pf.SUBFUNDS
+tab_names = ["Overview"] + pf.SUBFUNDS + ["Upload"]
 tabs = st.tabs(tab_names)
 
 
@@ -835,6 +835,49 @@ for idx, name in enumerate(pf.SUBFUNDS):
             st.caption(f"Total dividend income: **${total_div:,.3f}**")
             div_df["Amount ($)"] = div_df["Amount ($)"].apply(lambda x: f"${x:,.3f}")
             components.html(html_table(div_df, max_height="250px"), height=min(300, 40 * len(div_df) + 55), scrolling=True)
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  UPLOAD TAB
+# ═══════════════════════════════════════════════════════════════════════════
+SUBFUND_FILE_MAP = {
+    "Systematic": "systematic.csv",
+    "Opportunistic": "opportunistic.csv",
+    "Thematic": "thematic.csv",
+    "Fixed Income": "fixed_income.csv",
+}
+
+with tabs[-1]:
+    st.markdown('<div class="section-header">Upload Transaction Report</div>', unsafe_allow_html=True)
+    st.markdown(
+        "Upload your **Fidelity CSV export** to update a sub-fund's transaction history. "
+        "The file will replace the existing data for that sub-fund."
+    )
+
+    upload_fund = st.selectbox("Select Sub-Fund", list(SUBFUND_FILE_MAP.keys()), key="upload_fund")
+    uploaded_file = st.file_uploader(
+        "Upload Fidelity CSV", type=["csv"], key="upload_csv",
+        help="Export your transaction history from Fidelity and upload the CSV here.",
+    )
+
+    if uploaded_file is not None:
+        try:
+            # Preview the upload
+            preview_df = pd.read_csv(uploaded_file)
+            uploaded_file.seek(0)  # Reset for saving
+            st.markdown(f"**Preview** — {len(preview_df)} rows, {len(preview_df.columns)} columns")
+            st.dataframe(preview_df.head(10), use_container_width=True, hide_index=True, height=300)
+
+            if st.button("✅ Save & Update", key="upload_save", type="primary"):
+                target_path = DATA_DIR / SUBFUND_FILE_MAP[upload_fund]
+                DATA_DIR.mkdir(parents=True, exist_ok=True)
+                target_path.write_bytes(uploaded_file.read())
+                # Clear caches so the new data is picked up
+                st.cache_data.clear()
+                st.success(f"✅ **{upload_fund}** updated successfully! Refreshing…")
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error reading file: {e}")
+
 
 # ── Footer ────────────────────────────────────────────────────────────────
 _logo_path = Path("assets/nyu_stern_logo.png")
