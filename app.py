@@ -117,20 +117,27 @@ st.markdown(f"""
 
     /* ── File uploader ── */
     [data-testid="stFileUploader"] button {{
-        border-radius: 16px !important;
-        padding: 0.2rem 0.7rem !important;
-        font-size: 0.65rem !important;
-        font-weight: 400 !important;
+        border-radius: 12px !important;
+        padding: 0.15rem 0.5rem !important;
+        font-size: 0.55rem !important;
+        font-family: 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+        font-weight: 300 !important;
         border: 1px solid #E5E7EB !important;
         background: {WHITE} !important;
         color: {GRAY} !important;
         transition: all 0.2s ease !important;
+        min-height: unset !important;
+        line-height: 1.2 !important;
     }}
-    [data-testid="stFileUploader"] section {{
-        font-size: 0.75rem !important;
+    [data-testid="stFileUploader"] section,
+    [data-testid="stFileUploader"] span,
+    [data-testid="stFileUploader"] label {{
+        font-size: 0.7rem !important;
+        font-family: 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
     }}
     [data-testid="stFileUploader"] small {{
-        font-size: 0.65rem !important;
+        font-size: 0.6rem !important;
+        font-family: 'Helvetica Neue Light', 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
     }}
     [data-testid="stFileUploader"] button:hover {{
         background: {NYU_PURPLE_BG} !important;
@@ -363,6 +370,9 @@ PLOTLY_CFG = {
     "displayModeBar": "hover",
     "toImageButtonOptions": {"format": "png", "scale": 4},
 }
+_PLOTLY_FONT = dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13)
+_PLOTLY_AXIS_FONT = dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=12)
+_PLOTLY_TITLE_FONT = dict(family="Helvetica Neue, Helvetica, Arial, sans-serif", size=12)
 
 # ── Charts ─────────────────────────────────────────────────────────────────
 def make_return_chart(rets: pd.Series, height: int = 380,
@@ -393,11 +403,12 @@ def make_return_chart(rets: pd.Series, height: int = 380,
     fig.update_layout(
         height=height,
         margin=dict(l=0, r=0, t=30, b=0),
-        xaxis=dict(showgrid=False, showline=False),
+        xaxis=dict(showgrid=False, showline=False, tickfont=_PLOTLY_AXIS_FONT),
         yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Cumulative Return (%)",
-                   tickformat="+.3f", zeroline=True, zerolinecolor="#E5E7EB"),
+                   tickformat="+.3f", zeroline=True, zerolinecolor="#E5E7EB",
+                   tickfont=_PLOTLY_AXIS_FONT, title_font=_PLOTLY_TITLE_FONT),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
+        font=_PLOTLY_FONT,
         hovermode="x unified",
         showlegend=show_legend,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=12)),
@@ -419,10 +430,11 @@ def make_drawdown_chart(rets: pd.Series, height: int = 200):
     ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=10, b=0),
-        xaxis=dict(showgrid=False, showline=False),
-        yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Drawdown (%)", tickformat=".3f"),
+        xaxis=dict(showgrid=False, showline=False, tickfont=_PLOTLY_AXIS_FONT),
+        yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Drawdown (%)", tickformat=".3f",
+                   tickfont=_PLOTLY_AXIS_FONT, title_font=_PLOTLY_TITLE_FONT),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
+        font=_PLOTLY_FONT,
     )
     return fig
 
@@ -452,11 +464,12 @@ def make_multi_fund_chart(fund_data: dict, visible: list, height: int = 400):
         ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=20, b=0),
-        xaxis=dict(showgrid=False, showline=False),
+        xaxis=dict(showgrid=False, showline=False, tickfont=_PLOTLY_AXIS_FONT),
         yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Cumulative Return (%)",
-                   tickformat="+.3f", zeroline=True, zerolinecolor="#E5E7EB"),
+                   tickformat="+.3f", zeroline=True, zerolinecolor="#E5E7EB",
+                   tickfont=_PLOTLY_AXIS_FONT, title_font=_PLOTLY_TITLE_FONT),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
+        font=_PLOTLY_FONT,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12)),
         hovermode="x unified",
     )
@@ -476,10 +489,11 @@ def make_attribution_bar(attr_df: pd.DataFrame, top_n: int = 15, height: int = 4
     ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=10, b=0),
-        xaxis=dict(title="Contribution (bps)", showgrid=True, gridcolor="#F3F4F6"),
-        yaxis=dict(showgrid=False),
+        xaxis=dict(title="Contribution (bps)", showgrid=True, gridcolor="#F3F4F6",
+                   tickfont=_PLOTLY_AXIS_FONT, title_font=_PLOTLY_TITLE_FONT),
+        yaxis=dict(showgrid=False, tickfont=_PLOTLY_AXIS_FONT),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
+        font=_PLOTLY_FONT,
     )
     return fig
 
@@ -513,7 +527,7 @@ def make_holdings_pie(holdings_df: pd.DataFrame, height: int = 350):
     ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=10, b=0),
-        paper_bgcolor=WHITE, font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
+        paper_bgcolor=WHITE, font=_PLOTLY_FONT,
         showlegend=False,
     )
     return fig
@@ -876,7 +890,7 @@ for idx, name in enumerate(pf.SUBFUNDS):
             start_str = (d["first_date"] - pd.Timedelta(days=5)).strftime("%Y-%m-%d")
             end_str = (d["end_date"] + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 
-            st.markdown('<div class="section-header">Factor Exposure (Custom)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-header">Factor Exposure (Fama-French)</div>', unsafe_allow_html=True)
             factor_betas = pf.compute_factor_betas(rets, start_str, end_str)
             if factor_betas:
                 fcols = st.columns(len(factor_betas))
