@@ -37,10 +37,25 @@ RED = "#EF4444"
 
 st.markdown(f"""
 <style>
+    /* ── Web font fallback for Linux/Render ── */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
     /* ── Typography ── */
     * {{
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important;
+        font-family: 'Helvetica Neue', Helvetica, Inter, Arial, sans-serif !important;
         font-weight: 300;
+    }}
+
+    /* ── Force Plotly SVG text to use our font ── */
+    .js-plotly-plot text,
+    .js-plotly-plot .gtitle,
+    .js-plotly-plot .xtick text,
+    .js-plotly-plot .ytick text,
+    .js-plotly-plot .g-xtitle text,
+    .js-plotly-plot .g-ytitle text,
+    .js-plotly-plot .legendtext {{
+        font-family: 'Helvetica Neue', Helvetica, Inter, Arial, sans-serif !important;
+        font-weight: 300 !important;
     }}
     h1, h2, h3, h4, h5, h6,
     .metric-label, .metric-value, .section-header, .logo,
@@ -370,9 +385,9 @@ PLOTLY_CFG = {
     "displayModeBar": "hover",
     "toImageButtonOptions": {"format": "png", "scale": 4},
 }
-_PLOTLY_FONT = dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13)
-_PLOTLY_AXIS_FONT = dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=12)
-_PLOTLY_TITLE_FONT = dict(family="Helvetica Neue, Helvetica, Arial, sans-serif", size=12)
+_PLOTLY_FONT = dict(family="Helvetica Neue, Helvetica, Inter, Arial, sans-serif", size=13, color=GRAY)
+_PLOTLY_AXIS_FONT = dict(family="Helvetica Neue, Helvetica, Inter, Arial, sans-serif", size=12, color=GRAY)
+_PLOTLY_TITLE_FONT = dict(family="Helvetica Neue, Helvetica, Inter, Arial, sans-serif", size=12, color=GRAY)
 
 # ── Charts ─────────────────────────────────────────────────────────────────
 def make_return_chart(rets: pd.Series, height: int = 380,
