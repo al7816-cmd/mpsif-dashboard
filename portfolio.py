@@ -543,6 +543,37 @@ def alpha_jensen(port_rets: pd.Series, bench_rets: pd.Series, rf=RISK_FREE_RATE)
     return ann_return(port_rets) - (rf + b * (ann_return(bench_rets) - rf))
 
 
+def regression_stats(port_rets: pd.Series, bench_rets: pd.Series, rf=RISK_FREE_RATE) -> dict:
+    """Run CAPM regression: R_p - R_f = alpha + beta * (R_m - R_f) + epsilon.
+    Returns dict with alpha (ann.), beta, excess return, and idiosyncratic vol."""
+    aligned = pd.concat([port_rets, bench_rets], axis=1).dropna()
+    if len(aligned) < 10:
+        return {"alpha": 0.0, "beta": 0.0, "excess_return": 0.0, "idio_vol": 0.0}
+
+    rf_daily = rf / 252
+    y = (aligned.iloc[:, 0] - rf_daily).values.astype(np.float64)  # R_p - R_f
+    x = (aligned.iloc[:, 1] - rf_daily).values.astype(np.float64)  # R_m - R_f
+    X = np.column_stack([np.ones(len(x)), x])
+
+    coeffs, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+    alpha_daily = coeffs[0]
+    beta_val = coeffs[1]
+
+    # Residuals = epsilon (idiosyncratic component)
+    residuals = y - X @ coeffs
+    idio_vol = float(np.std(residuals, ddof=1) * np.sqrt(252))  # annualized
+
+    # Excess return = cumulative (Rp - Rb)
+    excess_cum = float(((1 + aligned.iloc[:, 0]).prod() / (1 + aligned.iloc[:, 1]).prod()) - 1)
+
+    return {
+        "alpha": float(alpha_daily * 252),       # annualized alpha
+        "beta": float(beta_val),
+        "excess_return": excess_cum,
+        "idio_vol": idio_vol,
+    }
+
+
 # ── Factor exposure ──────────────────────────────────────────────────────
 FACTOR_ETFS = {
     "Momentum": "MTUM",

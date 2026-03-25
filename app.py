@@ -684,20 +684,16 @@ with tabs[0]:
             # ── Blended benchmark metrics ──
             if not blended_bench_rets.empty:
                 st.markdown('<div class="section-header">vs. Blended Benchmark (50% SPY + 25% IWV + 25% AGG)</div>', unsafe_allow_html=True)
-                er = pf.excess_returns(combined_rets, blended_bench_rets)
+                reg = pf.regression_stats(combined_rets, blended_bench_rets)
                 bcols = st.columns(4)
                 with bcols[0]:
-                    excess_total = pf.total_ret(er)
-                    st.markdown(metric_card("Excess Return", fmt_pct(excess_total * 100), color_class(excess_total)), unsafe_allow_html=True)
+                    st.markdown(metric_card("Excess Return", fmt_pct(reg["excess_return"] * 100), color_class(reg["excess_return"])), unsafe_allow_html=True)
                 with bcols[1]:
-                    a = pf.alpha_jensen(combined_rets, blended_bench_rets)
-                    st.markdown(metric_card("Alpha (Ann.)", fmt_pct(a * 100), color_class(a)), unsafe_allow_html=True)
+                    st.markdown(metric_card("Alpha (Ann.)", fmt_pct(reg["alpha"] * 100), color_class(reg["alpha"])), unsafe_allow_html=True)
                 with bcols[2]:
-                    b = pf.beta(combined_rets, blended_bench_rets)
-                    st.markdown(metric_card("Beta", f"{b:.3f}"), unsafe_allow_html=True)
+                    st.markdown(metric_card("Market Beta", f"{reg['beta']:.3f}"), unsafe_allow_html=True)
                 with bcols[3]:
-                    ir = pf.information_ratio(combined_rets, blended_bench_rets)
-                    st.markdown(metric_card("Info Ratio", f"{ir:.3f}"), unsafe_allow_html=True)
+                    st.markdown(metric_card("Idio. Vol (Ann.)", fmt_pct(reg["idio_vol"] * 100)), unsafe_allow_html=True)
             st.markdown("")
 
             # ── Multi-fund chart ──
@@ -796,20 +792,16 @@ for idx, name in enumerate(pf.SUBFUNDS):
         # ── Benchmark metrics ──
         if not bench_r.empty:
             st.markdown(f'<div class="section-header">vs. {bench_ticker} Benchmark</div>', unsafe_allow_html=True)
-            er = pf.excess_returns(rets, bench_r)
+            reg = pf.regression_stats(rets, bench_r)
             bcols = st.columns(4)
             with bcols[0]:
-                excess_total = pf.total_ret(er)
-                st.markdown(metric_card("Excess Return", fmt_pct(excess_total * 100), color_class(excess_total)), unsafe_allow_html=True)
+                st.markdown(metric_card("Excess Return", fmt_pct(reg["excess_return"] * 100), color_class(reg["excess_return"])), unsafe_allow_html=True)
             with bcols[1]:
-                a = pf.alpha_jensen(rets, bench_r)
-                st.markdown(metric_card("Alpha (Ann.)", fmt_pct(a * 100), color_class(a)), unsafe_allow_html=True)
+                st.markdown(metric_card("Alpha (Ann.)", fmt_pct(reg["alpha"] * 100), color_class(reg["alpha"])), unsafe_allow_html=True)
             with bcols[2]:
-                b = pf.beta(rets, bench_r)
-                st.markdown(metric_card("Beta", f"{b:.3f}"), unsafe_allow_html=True)
+                st.markdown(metric_card("Market Beta", f"{reg['beta']:.3f}"), unsafe_allow_html=True)
             with bcols[3]:
-                ir = pf.information_ratio(rets, bench_r)
-                st.markdown(metric_card("Info Ratio", f"{ir:.3f}"), unsafe_allow_html=True)
+                st.markdown(metric_card("Idio. Vol (Ann.)", fmt_pct(reg["idio_vol"] * 100)), unsafe_allow_html=True)
 
         st.markdown("")
 
