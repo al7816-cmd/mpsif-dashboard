@@ -117,14 +117,20 @@ st.markdown(f"""
 
     /* ── File uploader ── */
     [data-testid="stFileUploader"] button {{
-        border-radius: 20px !important;
-        padding: 0.3rem 1rem !important;
-        font-size: 0.8rem !important;
+        border-radius: 16px !important;
+        padding: 0.2rem 0.7rem !important;
+        font-size: 0.65rem !important;
         font-weight: 400 !important;
         border: 1px solid #E5E7EB !important;
         background: {WHITE} !important;
         color: {GRAY} !important;
         transition: all 0.2s ease !important;
+    }}
+    [data-testid="stFileUploader"] section {{
+        font-size: 0.75rem !important;
+    }}
+    [data-testid="stFileUploader"] small {{
+        font-size: 0.65rem !important;
     }}
     [data-testid="stFileUploader"] button:hover {{
         background: {NYU_PURPLE_BG} !important;
@@ -370,7 +376,7 @@ def make_return_chart(rets: pd.Series, height: int = 380,
         line=dict(color=NYU_PURPLE, width=2.5),
         fill="tozeroy", fillcolor="rgba(87, 6, 140, 0.07)",
         yhoverformat="+.3f",
-        hovertemplate="Portfolio: %{y}%<extra></extra>",
+        hovertemplate="Portfolio: %{y:.3f}%<extra></extra>",
     ))
     if bench_rets is not None and not bench_rets.empty:
         bench_aligned = bench_rets.reindex(rets.index).dropna()
@@ -381,7 +387,7 @@ def make_return_chart(rets: pd.Series, height: int = 380,
                 name=bench_label,
                 line=dict(color="#F59E0B", width=2, dash="dash"),
                 yhoverformat="+.3f",
-                hovertemplate=f"{bench_label}: %{{y}}%<extra></extra>",
+                hovertemplate=f"{bench_label}: %{{y:.3f}}%<extra></extra>",
             ))
     show_legend = bench_rets is not None and not bench_rets.empty
     fig.update_layout(
@@ -391,7 +397,7 @@ def make_return_chart(rets: pd.Series, height: int = 380,
         yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Cumulative Return (%)",
                    tickformat="+.3f", zeroline=True, zerolinecolor="#E5E7EB"),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue, Helvetica, Arial, sans-serif"),
+        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
         hovermode="x unified",
         showlegend=show_legend,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=12)),
@@ -416,7 +422,7 @@ def make_drawdown_chart(rets: pd.Series, height: int = 200):
         xaxis=dict(showgrid=False, showline=False),
         yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Drawdown (%)", tickformat=".3f"),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue, Helvetica, Arial, sans-serif"),
+        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
     )
     return fig
 
@@ -442,7 +448,7 @@ def make_multi_fund_chart(fund_data: dict, visible: list, height: int = 400):
             line=dict(color=colors.get(name, GRAY), width=line_width, dash=line_dash),
             visible=True if name in visible else "legendonly",
             yhoverformat="+.3f",
-            hovertemplate=f"{name}: %{{y}}%<extra></extra>",
+            hovertemplate=f"{name}: %{{y:.3f}}%<extra></extra>",
         ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=20, b=0),
@@ -450,7 +456,7 @@ def make_multi_fund_chart(fund_data: dict, visible: list, height: int = 400):
         yaxis=dict(showgrid=True, gridcolor="#F3F4F6", title="Cumulative Return (%)",
                    tickformat="+.3f", zeroline=True, zerolinecolor="#E5E7EB"),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue, Helvetica, Arial, sans-serif"),
+        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12)),
         hovermode="x unified",
     )
@@ -473,7 +479,7 @@ def make_attribution_bar(attr_df: pd.DataFrame, top_n: int = 15, height: int = 4
         xaxis=dict(title="Contribution (bps)", showgrid=True, gridcolor="#F3F4F6"),
         yaxis=dict(showgrid=False),
         plot_bgcolor=WHITE, paper_bgcolor=WHITE,
-        font=dict(family="Helvetica Neue, Helvetica, Arial, sans-serif"),
+        font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
     )
     return fig
 
@@ -507,7 +513,7 @@ def make_holdings_pie(holdings_df: pd.DataFrame, height: int = 350):
     ))
     fig.update_layout(
         height=height, margin=dict(l=0, r=0, t=10, b=0),
-        paper_bgcolor=WHITE, font=dict(family="Helvetica Neue, Helvetica, Arial, sans-serif"),
+        paper_bgcolor=WHITE, font=dict(family="Helvetica Neue Light, Helvetica Neue, Helvetica, Arial, sans-serif", size=13),
         showlegend=False,
     )
     return fig
@@ -796,7 +802,7 @@ for idx, name in enumerate(pf.SUBFUNDS):
         # ── Cumulative return chart ──
         st.markdown(f'<div class="section-header">{name} — Cumulative Return</div>', unsafe_allow_html=True)
         chart_period = st.segmented_control(
-            "Chart period", ["1W", "1M", "YTD", "All"],
+            "Chart period", ["1W", "1M", "YTD", "All", "Custom"],
             default="YTD", key=f"chart_period_{name}",
             label_visibility="collapsed",
         )
@@ -810,6 +816,17 @@ for idx, name in enumerate(pf.SUBFUNDS):
             chart_rets = rets[rets.index > rets.index[-1] - pd.DateOffset(months=1)]
         elif chart_period == "YTD":
             chart_rets = rets[rets.index >= pd.Timestamp(rets.index[-1].year, 1, 1)]
+        elif chart_period == "Custom":
+            dc1, dc2 = st.columns(2)
+            with dc1:
+                custom_start = st.date_input("Start date", value=rets.index[0].date(),
+                                             min_value=rets.index[0].date(), max_value=rets.index[-1].date(),
+                                             key=f"custom_start_{name}")
+            with dc2:
+                custom_end = st.date_input("End date", value=rets.index[-1].date(),
+                                           min_value=rets.index[0].date(), max_value=rets.index[-1].date(),
+                                           key=f"custom_end_{name}")
+            chart_rets = rets[(rets.index >= pd.Timestamp(custom_start)) & (rets.index <= pd.Timestamp(custom_end))]
 
         # Align benchmark to chart period
         chart_bench = bench_r
