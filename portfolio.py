@@ -23,6 +23,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger(__name__)
 
 IGNORE_SYMBOLS = {"SPAXX"}
+
+
+def _is_cusip(sym: str) -> bool:
+    """Detect CUSIP identifiers (alphanumeric, contain digits) vs equity tickers."""
+    s = str(sym).strip()
+    return bool(s) and any(c.isdigit() for c in s) and s not in IGNORE_SYMBOLS
 SUBFUNDS = ["Systematic", "Opportunistic", "Thematic", "Fixed Income"]
 BENCHMARKS = {
     "Systematic": "SPY",
@@ -156,6 +162,16 @@ def parse_fidelity_csv(filepath: str):
         ).fillna(0).values
 
     df = df[~df["Symbol"].isin(IGNORE_SYMBOLS)]
+    # Skip corporate bonds (CUSIPs) — no price source available.
+    # Cash flows from bond trades are still captured via the Amount column
+    # affecting cash balance. Closed bond P&L is reflected in cash; open
+    # bonds are effectively valued at 0 (understates AUM by open position cost).
+    cusip_mask = df["Symbol"].apply(_is_cusip)
+    n_cusip = cusip_mask.sum()
+    if n_cusip > 0:
+        cusip_syms = df.loc[cusip_mask, "Symbol"].unique()
+        log.info(f"  Skipping {n_cusip} CUSIP transactions ({list(cusip_syms)}) — no price source")
+        df = df[~cusip_mask]
     df = df.sort_values("Date").reset_index(drop=True)
     return df, initial_cash
 
