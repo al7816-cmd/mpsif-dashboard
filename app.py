@@ -1000,7 +1000,9 @@ for idx, name in enumerate(pf.SUBFUNDS):
                 with fcols[-1]:
                     st.markdown(metric_card("Idio. Vol (Ann.)", fmt_pct(idio * 100)), unsafe_allow_html=True)
 
-                # Stats table (no Sig. column)
+                st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
+
+                # Stats table
                 stat_rows = [{"Factor": "Alpha (Ann.)", "Beta": f"{alpha:.3f}", "t-stat": f"{alpha_t:.3f}", "p-value": f"{alpha_p:.3f}"}]
                 for fname, bval in factor_items.items():
                     s = stats.get(fname, {})
@@ -1026,7 +1028,8 @@ for idx, name in enumerate(pf.SUBFUNDS):
             if selected_stocks:
                 stock_prices = pf.fetch_prices(selected_stocks, start_str, end_str)
                 if not stock_prices.empty:
-                    has_results = False
+                    ff_rows = []
+                    etf_rows = []
                     for ticker in selected_stocks:
                         if ticker not in stock_prices.columns:
                             continue
@@ -1035,45 +1038,41 @@ for idx, name in enumerate(pf.SUBFUNDS):
                             continue
                         ff = pf.compute_factor_betas(stock_rets, start_str, end_str)
                         etf = pf.compute_etf_factor_betas(stock_rets, start_str, end_str)
-                        if not ff and not etf:
-                            continue
-                        has_results = True
 
-                        # Build per-stock table with FF and ETF rows
-                        def _extract_rows(result, model_label):
+                        def _build_row(result, ticker):
                             if not result:
-                                return []
+                                return None
                             alpha = result.pop("_alpha", 0.0)
                             idio = result.pop("_idio_vol", 0.0)
-                            r_sq = result.pop("_r_squared", 0.0)
-                            alpha_t = result.pop("_alpha_t", 0.0)
-                            alpha_p = result.pop("_alpha_p", 0.0)
-                            stats = result.pop("_stats", {})
+                            result.pop("_r_squared", None)
+                            result.pop("_alpha_t", None)
+                            result.pop("_alpha_p", None)
+                            result.pop("_stats", None)
                             factors = {k: v for k, v in result.items() if not k.startswith("_")}
-                            rows = []
+                            row = {"Ticker": ticker}
                             for fname, bval in factors.items():
-                                s = stats.get(fname, {})
-                                rows.append({
-                                    "Model": model_label,
-                                    "Factor": fname,
-                                    "Beta": f"{bval:.3f}",
-                                    "t-stat": f"{s.get('t_stat', 0.0):.3f}",
-                                    "p-value": f"{s.get('p_value', 1.0):.3f}",
-                                })
-                            rows.append({"Model": model_label, "Factor": "Alpha (Ann.)", "Beta": fmt_pct(alpha * 100), "t-stat": f"{alpha_t:.3f}", "p-value": f"{alpha_p:.3f}"})
-                            rows.append({"Model": model_label, "Factor": "R²", "Beta": f"{r_sq:.3f}", "t-stat": "", "p-value": ""})
-                            rows.append({"Model": model_label, "Factor": "Idio. Vol (Ann.)", "Beta": fmt_pct(idio * 100), "t-stat": "", "p-value": ""})
-                            return rows
+                                row[fname] = bval
+                            row["Alpha (Ann.)"] = round(alpha * 100, 3)
+                            row["Idio. Vol (Ann.)"] = round(idio * 100, 3)
+                            return row
 
-                        rows = _extract_rows(ff, "Fama-French") + _extract_rows(etf, "ETF Proxy")
-                        if rows:
-                            stock_df = pd.DataFrame(rows)
-                            st.markdown(f"**{ticker}**")
-                            components.html(html_table(stock_df, max_height="350px"),
-                                          height=min(380, 35 * len(stock_df) + 55), scrolling=True)
-                            st.markdown("")
+                        ff_row = _build_row(ff, ticker)
+                        etf_row = _build_row(etf, ticker)
+                        if ff_row:
+                            ff_rows.append(ff_row)
+                        if etf_row:
+                            etf_rows.append(etf_row)
 
-                    if not has_results:
+                    if ff_rows:
+                        st.markdown("**Fama-French Factors**")
+                        ff_df = pd.DataFrame(ff_rows)
+                        components.html(html_table(ff_df, max_height="300px"), height=min(350, 40 * len(ff_df) + 55), scrolling=True)
+                    if etf_rows:
+                        st.markdown("")
+                        st.markdown("**ETF Proxy Factors**")
+                        etf_df = pd.DataFrame(etf_rows)
+                        components.html(html_table(etf_df, max_height="300px"), height=min(350, 40 * len(etf_df) + 55), scrolling=True)
+                    if not ff_rows and not etf_rows:
                         st.info("Not enough data to compute factor betas for selected stocks.")
                 else:
                     st.info("Could not fetch price data for selected stocks.")
