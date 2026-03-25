@@ -1090,6 +1090,67 @@ for idx, name in enumerate(pf.SUBFUNDS):
             div_df["Amount ($)"] = div_df["Amount ($)"].apply(lambda x: f"${x:,.3f}")
             components.html(html_table(div_df, max_height="250px"), height=min(300, 40 * len(div_df) + 55), scrolling=True)
 
+        # ── Bond Price Entry (Fixed Income only) ──
+        if name == "Fixed Income":
+            # Find open CUSIP positions
+            cusip_holdings = [t for t in (holdings["Ticker"].tolist() if not holdings.empty else []) if pf._is_cusip(t)]
+            if cusip_holdings:
+                st.markdown('<div class="section-header">Corporate Bond Prices</div>', unsafe_allow_html=True)
+                st.caption("Enter current bond prices (per $100 face value) to mark open positions to market.")
+
+                existing = pf.load_bond_prices_full()
+                updated = False
+                bond_data = dict(existing)
+
+                for cusip in cusip_holdings:
+                    info = existing.get(cusip, {})
+                    desc = info.get("description", cusip)
+                    current_price = info.get("current_price_per_100", 100.0)
+                    purchase_price = info.get("purchase_price_per_100", 100.0)
+
+                    # Get description from holdings if available
+                    if desc == cusip and not holdings.empty:
+                        row = holdings[holdings["Ticker"] == cusip]
+                        if not row.empty:
+                            desc = cusip
+
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{cusip}** — {desc}")
+                    with col2:
+                        new_price = st.number_input(
+                            f"Price per $100",
+                            value=float(current_price),
+                            min_value=0.0,
+                            max_value=200.0,
+                            step=0.01,
+                            key=f"bond_price_{cusip}",
+                            label_visibility="collapsed",
+                        )
+                        if abs(new_price - current_price) > 0.001:
+                            bond_data[cusip] = {
+                                "description": desc,
+                                "purchase_price_per_100": purchase_price,
+                                "current_price_per_100": new_price,
+                                "price_ratio": new_price / purchase_price if purchase_price > 0 else 1.0,
+                            }
+                            updated = True
+
+                if st.button("Update Bond Prices", key="update_bond_prices"):
+                    # Also save any unchanged entries
+                    for cusip in cusip_holdings:
+                        if cusip not in bond_data:
+                            info = existing.get(cusip, {})
+                            bond_data[cusip] = info if info else {
+                                "description": cusip,
+                                "purchase_price_per_100": 100.0,
+                                "current_price_per_100": 100.0,
+                                "price_ratio": 1.0,
+                            }
+                    pf.save_bond_prices(bond_data)
+                    st.success("Bond prices updated. Refresh the page to see updated valuations.")
+                    st.cache_data.clear()
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  UPLOAD TAB
 # ═══════════════════════════════════════════════════════════════════════════

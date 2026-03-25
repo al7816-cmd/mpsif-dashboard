@@ -162,16 +162,17 @@ def parse_fidelity_csv(filepath: str):
         ).fillna(0).values
 
     df = df[~df["Symbol"].isin(IGNORE_SYMBOLS)]
-    # Skip corporate bonds (CUSIPs) — no price source available.
-    # Cash flows from bond trades are still captured via the Amount column
-    # affecting cash balance. Closed bond P&L is reflected in cash; open
-    # bonds are effectively valued at 0 (understates AUM by open position cost).
+    # Corporate bonds (CUSIPs): rewrite Qty/Price so position value = dollar cost.
+    # Set Quantity = abs(Amount) and Price = 1.0, so shares × price = cost in dollars.
+    # On sell, the actual cash proceeds are in Amount; the position is reduced by
+    # the sell amount. Manual price overrides can adjust the $1 valuation later.
     cusip_mask = df["Symbol"].apply(_is_cusip)
     n_cusip = cusip_mask.sum()
     if n_cusip > 0:
         cusip_syms = df.loc[cusip_mask, "Symbol"].unique()
-        log.info(f"  Skipping {n_cusip} CUSIP transactions ({list(cusip_syms)}) — no price source")
-        df = df[~cusip_mask]
+        log.info(f"  Normalizing {n_cusip} CUSIP transactions ({list(cusip_syms)}) to dollar-unit positions")
+        df.loc[cusip_mask, "Quantity"] = df.loc[cusip_mask, "Amount"].abs()
+        df.loc[cusip_mask, "Price"] = 1.0
     df = df.sort_values("Date").reset_index(drop=True)
     return df, initial_cash
 
@@ -198,6 +199,12 @@ def reconstruct_positions(txns: pd.DataFrame):
                     # in parse_fidelity_csv, so skip to avoid double-counting.
                     continue
                 positions[sym] = positions[sym] - abs(qty)
+                # For CUSIPs, qty is dollar amount which may differ between buy
+                # and sell (due to price changes). Close position if remainder
+                # is small relative to original position (i.e., the bond is fully sold
+                # but buy/sell dollar amounts differ due to price movement).
+                if _is_cusip(sym) and 0 < positions[sym] < abs(qty) * 0.5:
+                    positions[sym] = 0
                 if positions[sym] < 0.001:
                     positions[sym] = 0
                 cash_flows.append((date, amt))
@@ -226,6 +233,43 @@ def build_daily_positions(snapshots, start, end):
             ci += 1
         daily[d] = cur.copy()
     return daily
+
+
+# ── Bond price overrides (manual entry, stored as JSON) ──────────────────
+BOND_PRICE_PATH = _DATA_DIR / "bond_prices.json"
+
+
+def load_bond_prices() -> dict:
+    """Load manually entered bond prices. Returns {cusip: price_per_dollar_unit}.
+    A value of 1.0 means hold at cost. A value of 0.95 means the bond is
+    trading at 95 cents on the dollar (5% loss from par)."""
+    if BOND_PRICE_PATH.exists():
+        try:
+            with open(BOND_PRICE_PATH) as f:
+                data = json.load(f)
+            return {k: float(v.get("price_ratio", 1.0)) for k, v in data.items()}
+        except Exception:
+            pass
+    return {}
+
+
+def load_bond_prices_full() -> dict:
+    """Load full bond price data including descriptions."""
+    if BOND_PRICE_PATH.exists():
+        try:
+            with open(BOND_PRICE_PATH) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_bond_prices(data: dict):
+    """Save bond price data. Format: {cusip: {description, face_value, price_per_100, price_ratio}}"""
+    BOND_PRICE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(BOND_PRICE_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+    log.info(f"  Saved bond prices for {len(data)} CUSIPs to {BOND_PRICE_PATH}")
 
 
 # ── 3. Prices (Alpaca Market Data REST + file cache) ─────────────────────
@@ -1030,13 +1074,32 @@ def build_subfund(csv_path: str):
     tickers = sorted({t for p in daily_pos.values() for t in p})
     log.info(f"  {len(daily_pos)} business days, {len(tickers)} unique tickers: {tickers}")
 
+    # Separate CUSIP tickers from equity tickers
+    cusip_tickers = [t for t in tickers if _is_cusip(t)]
+    equity_tickers = [t for t in tickers if not _is_cusip(t)]
+
     # Ensure price history goes back to at least 2025-09-01 for full cache coverage
     price_start = min(first_buy - timedelta(days=5), pd.Timestamp("2025-09-01"))
     prices = fetch_prices(
-        tickers,
+        equity_tickers,
         price_start.strftime("%Y-%m-%d"),
         (end_date + timedelta(days=1)).strftime("%Y-%m-%d"),
     )
+
+    # Add CUSIP columns: default $1 (hold at cost), override with manual prices
+    if cusip_tickers and not prices.empty:
+        bond_prices = load_bond_prices()  # {cusip: price_per_dollar}
+        for ct in cusip_tickers:
+            manual_price = bond_prices.get(ct, 1.0)
+            prices[ct] = manual_price
+            log.info(f"  CUSIP {ct}: price=${manual_price:.4f}/unit")
+    elif cusip_tickers and prices.empty:
+        # All tickers are CUSIPs, create a minimal price DataFrame
+        bdays = pd.bdate_range(price_start, end_date)
+        prices = pd.DataFrame(index=bdays)
+        bond_prices = load_bond_prices()
+        for ct in cusip_tickers:
+            prices[ct] = bond_prices.get(ct, 1.0)
 
     log.info(f"  Computing portfolio values …")
     port_val = compute_portfolio_values(daily_pos, prices, dividends, cash_flows, initial_cash)
