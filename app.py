@@ -1096,10 +1096,9 @@ for idx, name in enumerate(pf.SUBFUNDS):
             cusip_holdings = [t for t in (holdings["Ticker"].tolist() if not holdings.empty else []) if pf._is_cusip(t)]
             if cusip_holdings:
                 st.markdown('<div class="section-header">Corporate Bond Prices</div>', unsafe_allow_html=True)
-                st.caption("Enter current bond prices (per $100 face value) to mark open positions to market.")
+                st.caption("Enter current bond prices and coupon details. Accrued interest is calculated automatically.")
 
                 existing = pf.load_bond_prices_full()
-                updated = False
                 bond_data = dict(existing)
 
                 for cusip in cusip_holdings:
@@ -1107,37 +1106,60 @@ for idx, name in enumerate(pf.SUBFUNDS):
                     desc = info.get("description", cusip)
                     current_price = info.get("current_price_per_100", 100.0)
                     purchase_price = info.get("purchase_price_per_100", 100.0)
+                    face_value = info.get("face_value", 0.0)
+                    coupon_rate = info.get("coupon_rate", 0.0)
+                    purchase_date = info.get("purchase_date", "")
 
-                    # Get description from holdings if available
-                    if desc == cusip and not holdings.empty:
-                        row = holdings[holdings["Ticker"] == cusip]
-                        if not row.empty:
-                            desc = cusip
-
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        st.markdown(f"**{cusip}** — {desc}")
-                    with col2:
+                    st.markdown(f"**{cusip}** — {desc}")
+                    c1, c2, c3, c4, c5 = st.columns(5)
+                    with c1:
                         new_price = st.number_input(
-                            f"Price per $100",
+                            "Current Price (per $100)",
                             value=float(current_price),
-                            min_value=0.0,
-                            max_value=200.0,
-                            step=0.01,
+                            min_value=0.0, max_value=200.0, step=0.01,
                             key=f"bond_price_{cusip}",
-                            label_visibility="collapsed",
                         )
-                        if abs(new_price - current_price) > 0.001:
-                            bond_data[cusip] = {
-                                "description": desc,
-                                "purchase_price_per_100": purchase_price,
-                                "current_price_per_100": new_price,
-                                "price_ratio": new_price / purchase_price if purchase_price > 0 else 1.0,
-                            }
-                            updated = True
+                    with c2:
+                        new_purchase = st.number_input(
+                            "Purchase Price (per $100)",
+                            value=float(purchase_price),
+                            min_value=0.0, max_value=200.0, step=0.01,
+                            key=f"bond_purchase_{cusip}",
+                        )
+                    with c3:
+                        new_face = st.number_input(
+                            "Face Value ($)",
+                            value=float(face_value),
+                            min_value=0.0, step=1000.0,
+                            key=f"bond_face_{cusip}",
+                        )
+                    with c4:
+                        new_coupon = st.number_input(
+                            "Coupon Rate (%)",
+                            value=float(coupon_rate * 100),
+                            min_value=0.0, max_value=20.0, step=0.125,
+                            key=f"bond_coupon_{cusip}",
+                        )
+                    with c5:
+                        new_date = st.text_input(
+                            "Purchase Date",
+                            value=purchase_date,
+                            placeholder="YYYY-MM-DD",
+                            key=f"bond_date_{cusip}",
+                        )
+
+                    bond_data[cusip] = {
+                        "description": desc,
+                        "purchase_price_per_100": new_purchase,
+                        "current_price_per_100": new_price,
+                        "price_ratio": new_price / new_purchase if new_purchase > 0 else 1.0,
+                        "face_value": new_face,
+                        "coupon_rate": new_coupon / 100,
+                        "purchase_date": new_date,
+                    }
 
                 if st.button("Update Bond Prices", key="update_bond_prices"):
-                    # Also save any unchanged entries
+                    # Save all entries
                     for cusip in cusip_holdings:
                         if cusip not in bond_data:
                             info = existing.get(cusip, {})

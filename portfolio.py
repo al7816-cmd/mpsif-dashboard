@@ -148,6 +148,8 @@ def parse_fidelity_csv(filepath: str):
             return "FEE"
         if "REINVESTMENT" in a:
             return "REINVESTMENT"
+        if "TRANSFERRED" in a:
+            return "TRANSFER"
         return "OTHER"
 
     df["ActionType"] = raw["Action"].apply(_action).values
@@ -217,6 +219,10 @@ def reconstruct_positions(txns: pd.DataFrame):
                 dividends.append((date, sym, amt))
                 cash_flows.append((date, amt))
 
+            elif action == "TRANSFER":
+                # Cash transfer in/out of the account
+                cash_flows.append((date, amt))
+
         snapshots.append((date, {k: v for k, v in positions.items() if v > 0.001}))
 
     return snapshots, dividends, cash_flows
@@ -251,6 +257,24 @@ def load_bond_prices() -> dict:
         except Exception:
             pass
     return {}
+
+
+def compute_bond_accrual_series(bond_info: dict, dates: pd.DatetimeIndex) -> pd.Series:
+    """Compute daily accrued interest for a bond as a fraction of cost.
+    Returns a Series of accrual amounts (in dollars) indexed by date."""
+    face_value = bond_info.get("face_value", 0)
+    coupon_rate = bond_info.get("coupon_rate", 0)  # annual rate, e.g. 0.065
+    purchase_date_str = bond_info.get("purchase_date")
+    if not face_value or not coupon_rate or not purchase_date_str:
+        return pd.Series(0.0, index=dates)
+
+    purchase_date = pd.Timestamp(purchase_date_str)
+    daily_accrual = face_value * coupon_rate / 365  # simple day count
+
+    # Accrual grows from purchase date, resets on coupon payment dates
+    # For simplicity, assume continuous accrual (no reset until coupon pays in CSV)
+    days_since = np.maximum((dates - purchase_date).days, 0)
+    return pd.Series(daily_accrual * days_since, index=dates)
 
 
 def load_bond_prices_full() -> dict:
@@ -505,15 +529,39 @@ def compute_ticker_values(daily_pos, prices):
 
 
 # ── 5. Return / risk metrics ─────────────────────────────────────────────
-def daily_returns(series: pd.Series) -> pd.Series:
-    """Compute daily returns, filtering out cash inflow/outflow spikes.
-    If the portfolio value jumps more than 200% in a single day (or drops
-    more than 80%), treat it as a capital flow and set that day's return to 0."""
+def daily_returns(series: pd.Series, transfers: list = None) -> pd.Series:
+    """Compute time-weighted daily returns, adjusting for cash transfers.
+    Transfers (in/out) are excluded from return calculations so they don't
+    appear as gains/losses."""
     s = series[series > 0]
-    rets = s.pct_change().dropna()
+    if transfers:
+        # Build a Series of transfer amounts by date
+        tf = pd.Series(dtype=float)
+        for date, amt in transfers:
+            if date in tf.index:
+                tf[date] += amt
+            else:
+                tf[date] = amt
+
+        # Time-weighted return: on transfer days, adjust the denominator
+        # return = end_value / (start_value + transfer) - 1
+        rets = pd.Series(dtype=float, index=s.index[1:])
+        for i in range(1, len(s)):
+            prev_val = s.iloc[i - 1]
+            cur_val = s.iloc[i]
+            cur_date = s.index[i]
+            transfer_amt = tf.get(cur_date, 0)
+            adjusted_prev = prev_val + transfer_amt
+            if adjusted_prev > 0:
+                rets.iloc[i - 1] = cur_val / adjusted_prev - 1
+            else:
+                rets.iloc[i - 1] = 0.0
+    else:
+        rets = s.pct_change().dropna()
+
     # Cap returns that are clearly cash flows, not market moves
-    rets[rets > 2.0] = 0.0    # >200% daily gain = cash inflow
-    rets[rets < -0.8] = 0.0   # >80% daily drop = cash outflow / liquidation
+    rets[rets > 2.0] = 0.0
+    rets[rets < -0.8] = 0.0
     return rets
 
 
@@ -1086,25 +1134,47 @@ def build_subfund(csv_path: str):
         (end_date + timedelta(days=1)).strftime("%Y-%m-%d"),
     )
 
-    # Add CUSIP columns: default $1 (hold at cost), override with manual prices
+    # Add CUSIP columns: base price from manual entry (or $1 at cost),
+    # plus daily coupon accrual that grows over time.
     if cusip_tickers and not prices.empty:
-        bond_prices = load_bond_prices()  # {cusip: price_per_dollar}
+        bond_prices_raw = load_bond_prices()  # {cusip: price_ratio}
+        bond_full = load_bond_prices_full()   # {cusip: {all fields}}
         for ct in cusip_tickers:
-            manual_price = bond_prices.get(ct, 1.0)
-            prices[ct] = manual_price
-            log.info(f"  CUSIP {ct}: price=${manual_price:.4f}/unit")
+            base_price = bond_prices_raw.get(ct, 1.0)
+            info = bond_full.get(ct, {})
+            accrual = compute_bond_accrual_series(info, prices.index)
+            # Find the cost basis (position qty in dollar units) to convert accrual to price ratio
+            ct_buys = txns[(txns["Symbol"] == ct) & (txns["ActionType"] == "BUY")]
+            cost_basis = ct_buys["Amount"].abs().sum() if not ct_buys.empty else 1.0
+            # Price = base mark-to-market ratio + accrual as fraction of cost
+            if cost_basis > 0:
+                prices[ct] = base_price + accrual / cost_basis
+            else:
+                prices[ct] = base_price
+            log.info(f"  CUSIP {ct}: base={base_price:.4f}, accrual=${accrual.iloc[-1]:,.2f}, effective price={prices[ct].iloc[-1]:.4f}")
     elif cusip_tickers and prices.empty:
-        # All tickers are CUSIPs, create a minimal price DataFrame
         bdays = pd.bdate_range(price_start, end_date)
         prices = pd.DataFrame(index=bdays)
-        bond_prices = load_bond_prices()
+        bond_prices_raw = load_bond_prices()
+        bond_full = load_bond_prices_full()
         for ct in cusip_tickers:
-            prices[ct] = bond_prices.get(ct, 1.0)
+            base_price = bond_prices_raw.get(ct, 1.0)
+            info = bond_full.get(ct, {})
+            accrual = compute_bond_accrual_series(info, prices.index)
+            ct_buys = txns[(txns["Symbol"] == ct) & (txns["ActionType"] == "BUY")]
+            cost_basis = ct_buys["Amount"].abs().sum() if not ct_buys.empty else 1.0
+            if cost_basis > 0:
+                prices[ct] = base_price + accrual / cost_basis
+            else:
+                prices[ct] = base_price
 
     log.info(f"  Computing portfolio values …")
     port_val = compute_portfolio_values(daily_pos, prices, dividends, cash_flows, initial_cash)
     tv = compute_ticker_values(daily_pos, prices)
-    rets = daily_returns(port_val["Total"])
+    # Extract transfer-only cash flows for time-weighted return adjustment
+    transfer_dates = set(txns[txns["ActionType"] == "TRANSFER"]["Date"])
+    transfer_flows = [(d, a) for d, a in cash_flows if d in transfer_dates]
+    rets = daily_returns(port_val["Total"], transfers=transfer_flows if transfer_flows else None)
     holdings = current_holdings(daily_pos, prices)
     avg_costs = compute_avg_costs(txns)
     log.info(f"  Portfolio: {len(rets)} return days, {len(holdings)} current holdings")
