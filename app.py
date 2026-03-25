@@ -442,10 +442,10 @@ def make_drawdown_chart(rets: pd.Series, height: int = 200):
 def make_multi_fund_chart(fund_data: dict, visible: list, height: int = 400):
     colors = {
         "Total Fund": BLACK,
-        "Systematic": NYU_PURPLE,
-        "Opportunistic": "#2563EB",
-        "Thematic": "#D97706",
-        "Fixed Income": "#059669",
+        "Systematic": "#2563EB",
+        "Opportunistic": "#DC2626",
+        "Thematic": "#059669",
+        "Fixed Income": "#7C3AED",
         "Benchmark": "#F59E0B",
     }
     fig = go.Figure()
@@ -453,7 +453,7 @@ def make_multi_fund_chart(fund_data: dict, visible: list, height: int = 400):
         if rets is None or rets.empty:
             continue
         cum = pf.cum_return(rets) * 100
-        line_width = 2.5 if name == "Total Fund" else 2
+        line_width = 3.5 if name == "Total Fund" else 1.8
         line_dash = "dash" if name == "Benchmark" else None
         fig.add_trace(go.Scatter(
             x=cum.index, y=cum.values, mode="lines", name=name,
