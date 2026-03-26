@@ -649,8 +649,8 @@ blended_bench_rets = pd.Series(dtype=float)
 if subfund_data:
     _all_starts = [d["first_date"] for d in subfund_data.values()]
     _all_ends = [d["end_date"] for d in subfund_data.values()]
-    # Use earliest sub-fund start, but no later than 2025-09-01 for full coverage
-    _earliest = min(min(_all_starts) - pd.Timedelta(days=5), pd.Timestamp("2025-09-01"))
+    # Start benchmark from when the first fund actually started trading
+    _earliest = min(_all_starts) - pd.Timedelta(days=5)
     _bench_start = _earliest.strftime("%Y-%m-%d")
     _bench_end = (max(_all_ends) + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     blended_bench_rets = load_blended_benchmark(_bench_start, _bench_end)
