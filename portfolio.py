@@ -660,9 +660,12 @@ def alpha_jensen(port_rets: pd.Series, bench_rets: pd.Series, rf=RISK_FREE_RATE)
     return ann_return(port_rets) - (rf + b * (ann_return(bench_rets) - rf))
 
 
-def regression_stats(port_rets: pd.Series, bench_rets: pd.Series, rf=RISK_FREE_RATE, end: str) -> dict:
+def regression_stats(port_rets: pd.Series, bench_rets: pd.Series, rf=RISK_FREE_RATE) -> dict:
     """Run CAPM regression: R_p - R_f = alpha + beta * (R_m - R_f) + epsilon.
     Returns dict with alpha (ann.), beta, excess return, and idiosyncratic vol."""
+    
+    end = _today_est().strftime("%Y-%m-%d")
+    
     aligned_raw = pd.concat([port_rets, bench_rets], axis=1).dropna()
     if len(aligned_raw) < 30:
         return {"alpha": 0.0, "beta": 0.0, "excess_return": 0.0, "idio_vol": 0.0}
