@@ -693,10 +693,10 @@ def regression_stats(port_rets: pd.Series, bench_rets: pd.Series, rf=RISK_FREE_R
 
 # ── Factor exposure ──────────────────────────────────────────────────────
 FACTOR_ETFS = {
-    "Momentum": "MTUM",
-    "Value": "VLUE",
-    "Growth": "VUG",
-    "Defensive": "USMV",
+    "Momentum": "SPMO",
+    "Value": "SPYV",
+    "Growth": "SPYG",
+    "Defensive": "SPLV",
 }
 
 # Uses custom factor construction from data.pk (contributed by al7816-cmd)
@@ -858,6 +858,82 @@ def compute_etf_factor_betas(port_rets: pd.Series, start: str, end: str) -> dict
 
     log.info(f"ETF factor betas: {result}")
     return result
+
+
+def weekly_factor_attribution(port_rets: pd.Series, betas: dict, start: str, end: str) -> pd.DataFrame:
+    """Decompose weekly portfolio returns into factor contributions.
+    Uses ETF factor betas × weekly ETF factor returns."""
+    if port_rets.empty or not betas:
+        return pd.DataFrame()
+
+    # Get factor ETF prices
+    tickers = list(FACTOR_ETFS.values())
+    prices = fetch_prices(tickers, start, end)
+    if prices.empty:
+        return pd.DataFrame()
+
+    # Daily factor ETF returns
+    factor_daily = prices.pct_change().dropna()
+    factor_daily.index = factor_daily.index.normalize()
+
+    # Clean portfolio returns
+    port_clean = port_rets.copy()
+    port_clean.index = port_clean.index.normalize()
+
+    # Resample to weekly (Friday-ending)
+    port_weekly = (1 + port_clean).resample("W-FRI").prod() - 1
+    port_weekly = port_weekly.dropna()
+    port_weekly = port_weekly[port_weekly.index >= pd.Timestamp(start)]
+
+    factor_weekly = {}
+    for name, ticker in FACTOR_ETFS.items():
+        if ticker in factor_daily.columns:
+            fw = (1 + factor_daily[ticker]).resample("W-FRI").prod() - 1
+            factor_weekly[name] = fw
+
+    factor_weekly_df = pd.DataFrame(factor_weekly)
+
+    # Build attribution rows
+    rows = []
+    # Extract betas — handle both "Name (TICKER)" and plain "Name" keys
+    beta_map = {}
+    for name in FACTOR_ETFS.keys():
+        for key, val in betas.items():
+            if key.startswith("_"):
+                continue
+            if name in key:
+                beta_map[name] = val
+                break
+
+    alpha_weekly = betas.get("_alpha", 0) / 52  # annualized → weekly
+
+    for date in port_weekly.index:
+        if date not in factor_weekly_df.index:
+            continue
+        row = {"Week Ending": date.strftime("%b %d, %Y")}
+        row["Portfolio"] = round(port_weekly.loc[date] * 100, 3)
+
+        explained = alpha_weekly * 100
+        row["Alpha"] = round(alpha_weekly * 100, 3)
+
+        for name in FACTOR_ETFS.keys():
+            if name in factor_weekly_df.columns and name in beta_map:
+                contrib = beta_map[name] * factor_weekly_df.loc[date, name] * 100
+                row[name] = round(contrib, 3)
+                explained += contrib
+            else:
+                row[name] = 0.0
+
+        row["Residual"] = round(row["Portfolio"] - explained, 3)
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    # Most recent week first
+    df = df.iloc[::-1].reset_index(drop=True)
+    return df
 
 
 # ── 6. Sector mapping ─────────────────────────────────────────────────────

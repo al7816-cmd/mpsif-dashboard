@@ -1017,6 +1017,23 @@ for idx, name in enumerate(pf.SUBFUNDS):
             render_factor_table(pf.compute_factor_betas(rets, start_str, end_str), "Factor Exposure (Fama-French)", f"ff_{name}")
             render_factor_table(pf.compute_etf_factor_betas(rets, start_str, end_str), "Factor Exposure (ETF Proxies)", f"etf_{name}")
 
+        # ── Weekly Factor Attribution ──
+        if not rets.empty:
+            st.markdown('<div class="section-header">Weekly Factor Return Attribution</div>', unsafe_allow_html=True)
+            etf_betas = pf.compute_etf_factor_betas(rets, start_str, end_str)
+            weekly_attr = pf.weekly_factor_attribution(rets, etf_betas, start_str, end_str)
+            if not weekly_attr.empty:
+                st.caption("Factor contributions (%) = β × weekly factor ETF return. Residual = unexplained by factors.")
+                # Format all numeric columns to 3dp with % suffix
+                display_wa = weekly_attr.copy()
+                for col in display_wa.columns:
+                    if col != "Week Ending":
+                        display_wa[col] = display_wa[col].apply(lambda x: f"{x:+.3f}%")
+                components.html(html_table(display_wa, max_height="400px"), height=min(450, 40 * len(display_wa) + 55), scrolling=True)
+            else:
+                st.info("Insufficient data for weekly attribution.")
+            st.markdown("")
+
         # ── Individual Stock Factor Exposure ──
         if not holdings.empty and not rets.empty:
             st.markdown('<div class="section-header">Stock Factor Explorer</div>', unsafe_allow_html=True)
